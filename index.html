@@ -18,16 +18,15 @@
     font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     overflow: hidden;
   }
-  body.idle { cursor: none; }
 
-  /* 화면 높이에 맞춰 JS에서 축소/가운데 정렬, 번인 방지를 위해 1분마다 살짝 이동 */
+  /* 화면 높이에 맞춰 JS에서 축소/가운데 정렬, 번인 방지를 위해 5분마다 살짝 이동.
+     화면보호기는 마우스 이벤트가 생기면 꺼지므로 커서·마우스 관련 동작과 이동 애니메이션은 넣지 않음. */
   #stage {
     position: absolute;
     left: 2vw; top: 0;
     width: 96vw;
     -ms-transform-origin: 50% 0;
     transform-origin: 50% 0;
-    transition: transform 3s ease-in-out;
   }
 
   /* ── 상단: 시계 + 지금 할 일 ── */
@@ -202,12 +201,6 @@
   #rules b { display: inline-block; width: 4.5vw; }
   #sign { text-align: right; margin-top: .6vw; font-size: 1.3vw; letter-spacing: .6vw; }
   #sign span { color: #aaa; font-size: 1vw; letter-spacing: 0; margin-left: .8vw; }
-
-  #hint {
-    position: fixed; bottom: 1vh; right: 1.5vw;
-    color: #56625f; font-size: .8vw;
-  }
-  body.idle #hint { display: none; }
 </style>
 </head>
 <body>
@@ -249,7 +242,6 @@
     <div id="sign">곽 대 훈<span>(서명)</span></div>
   </div>
 </div>
-<div id="hint">클릭하면 전체화면 · ESC로 나가기</div>
 
 <script>
 // ───────────────── 시간표 데이터 ─────────────────
@@ -477,7 +469,7 @@ function tick() {
 }
 
 // ───────────────── 화면보호기 동작 ─────────────────
-// 화면 높이에 맞게 축소·가운데 정렬 + 번인 방지를 위해 1분마다 조금씩 위치 이동
+// 화면 높이에 맞게 축소·가운데 정렬 + 번인 방지를 위해 5분마다 조금씩 위치 이동
 var dx = 0, dy = 0;
 function layout() {
   var stage = $("stage");
@@ -495,30 +487,14 @@ function drift() {
   layout();
 }
 
-// 마우스를 3초간 안 움직이면 커서 숨김
-var idleTimer = null;
-function wake() {
-  setClass(document.body, "idle", false);
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(function () { setClass(document.body, "idle", true); }, 3000);
-}
-
 function start() {
   buildHeader();
   buildRows();
   tick();
   layout();
-  wake();
   setInterval(tick, 1000);
-  setInterval(drift, 60000);
+  setInterval(drift, 5 * 60000);
   window.onresize = layout;
-  document.onmousemove = wake;
-  document.onclick = function () {
-    var el = document.documentElement;
-    var fs = el.requestFullscreen || el.msRequestFullscreen || el.webkitRequestFullscreen;
-    var isFs = document.fullscreenElement || document.msFullscreenElement || document.webkitFullscreenElement;
-    if (fs && !isFs) { try { fs.call(el); } catch (e) {} }
-  };
 }
 start();
 </script>
