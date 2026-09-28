@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대훈이 시간표</title>
+<style>
+  :root {
+    --bg: #14201e;
+    --card: #ffffff;
+    --head: #2e4a45;
+    --head-sub: #3d5c56;
+    --grid: #c9d3d1;
+    --ink: #2b2b2b;
+    --now: #e8323c;
+    --today: #fff6d6;
+
+    --c-study: #e7dcf1;   --t-study: #5b3b7a;
+    --c-meal: #fbd3d3;    --t-meal: #c0392b;
+    --c-school: #d5e7f6;  --t-school: #2c5d8a;
+    --c-hw: #fbf1c2;      --t-hw: #8a6d00;
+    --c-free: #d3f3e1;    --t-free: #1e8449;
+    --c-tkd: #fde0c6;     --t-tkd: #a04000;
+    --c-night: #dadee2;   --t-night: #34495e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  body.idle { cursor: none; }
+
+  /* 화면 높이에 맞춰 JS에서 축소, 번인 방지를 위해 1분마다 살짝 이동 */
+  #stage {
+    width: 96vw;
+    flex-shrink: 0;
+    transition: transform 3s ease-in-out;
+  }
+
+  /* ── 상단: 시계 + 지금 할 일 ── */
+  #top {
+    display: flex;
+    align-items: stretch;
+    gap: 1.2vw;
+    margin-bottom: 1.2vw;
+    color: #fff;
+  }
+  #clock {
+    background: rgba(255,255,255,.07);
+    border-radius: 1vw;
+    padding: .8vw 1.6vw;
+    min-width: 22%;
+  }
+  #clock .date { font-size: 1.3vw; opacity: .75; }
+  #clock .time { font-size: 4.2vw; font-weight: 700; letter-spacing: .1vw; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #clock .time small { font-size: 2vw; opacity: .6; margin-left: .3vw; }
+
+  #nowbox {
+    flex: 1;
+    background: rgba(255,255,255,.07);
+    border-radius: 1vw;
+    padding: .8vw 1.6vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: .5vw;
+  }
+  #nowbox .label { font-size: 1.2vw; opacity: .7; }
+  #nowbox .what { font-size: 3vw; font-weight: 700; line-height: 1.15; }
+  #nowbox .what .range { font-size: 1.4vw; font-weight: 400; opacity: .7; margin-left: .8vw; }
+  #nowbox .bar { height: .7vw; background: rgba(255,255,255,.15); border-radius: 1vw; overflow: hidden; }
+  #nowbox .bar i { display: block; height: 100%; width: 0; background: var(--now); border-radius: 1vw; transition: width 1s linear; }
+  #nowbox .next { font-size: 1.3vw; opacity: .8; }
+
+  /* ── 시간표 카드 ── */
+  #card {
+    background: var(--card);
+    border-radius: 1vw;
+    padding: 1vw 1.2vw 1.2vw;
+    box-shadow: 0 1vw 3vw rgba(0,0,0,.4);
+  }
+  #card h1 {
+    margin: 0 0 .6vw;
+    text-align: center;
+    font-size: 2vw;
+    letter-spacing: .2vw;
+  }
+  #table {
+    display: grid;
+    grid-template-columns: 5% 1fr;
+    border: 1px solid var(--grid);
+  }
+  .corner {
+    grid-row: 1 / span 3;
+    background: var(--head);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1vw;
+    font-weight: 700;
+  }
+  .hrow { position: relative; background: var(--head); color: #fff; height: 1.8vw; }
+  .hrow.sub { background: var(--head-sub); height: 1.5vw; }
+  .hrow.mini { background: #eef2f1; color: #667; height: 1.3vw; }
+  .hcell {
+    position: absolute; top: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-left: 1px solid rgba(255,255,255,.25);
+    font-size: 1vw; font-weight: 600;
+  }
+  .hrow.mini .hcell { border-left: 1px solid var(--grid); font-size: .75vw; font-weight: 400; }
+
+  .day {
+    background: #eef2f1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4vw; font-weight: 700;
+    border-top: 1px solid var(--grid);
+    height: 5.2vw;
+  }
+  .lane {
+    position: relative;
+    border-top: 1px solid var(--grid);
+    height: 5.2vw;
+  }
+  .day.today { background: var(--today); color: #b8860b; }
+  .lane.today { z-index: 1; }
+  .lane.today::after {
+    content: ""; position: absolute; inset: 0;
+    border: .25vw solid #f5c518;
+    pointer-events: none; z-index: 3;
+  }
+
+  .blk {
+    position: absolute; top: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    border-left: 1px solid rgba(0,0,0,.12);
+    font-size: 1vw; font-weight: 600; line-height: 1.25;
+    padding: 0 .2vw;
+    transition: filter .5s, opacity .5s;
+  }
+  .blk.past { opacity: .45; filter: grayscale(.4); }
+  .blk.current {
+    z-index: 2;
+    box-shadow: inset 0 0 0 .22vw var(--now);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: inset 0 0 0 .22vw rgba(232,50,60,.35); } }
+
+  .study  { background: var(--c-study);  color: var(--t-study); }
+  .meal   { background: var(--c-meal);   color: var(--t-meal); }
+  .school { background: var(--c-school); color: var(--t-school); }
+  .hw     { background: var(--c-hw);     color: var(--t-hw); }
+  .free   { background: var(--c-free);   color: var(--t-free); }
+  .tkd    { background: var(--c-tkd);    color: var(--t-tkd); }
+  .night  { background: var(--c-night);  color: var(--t-night); }
+
+  /* ── 지금 시각 막대선 ── */
+  #nowline {
+    position: absolute;
+    top: -4.6vw; bottom: 0;
+    width: 0;
+    border-left: .25vw solid var(--now);
+    z-index: 5;
+    pointer-events: none;
+    transition: left 1s linear;
+    display: none;
+  }
+  #nowline::before {
+    content: "";
+    position: absolute; top: -.5vw; left: -.65vw;
+    width: 1.05vw; height: 1.05vw; border-radius: 50%;
+    background: var(--now);
+  }
+  #nowline .tag {
+    position: absolute; top: -2.1vw; left: 0;
+    transform: translateX(-50%);
+    background: var(--now); color: #fff;
+    font-size: .9vw; font-weight: 700;
+    padding: .1vw .5vw; border-radius: .4vw;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  #nowline .glow {
+    position: absolute; top: 0; bottom: 0; left: -.9vw; width: 1.6vw;
+    background: linear-gradient(90deg, transparent, rgba(232,50,60,.18), transparent);
+    animation: glow 2s ease-in-out infinite;
+  }
+  @keyframes glow { 50% { opacity: .3; } }
+
+  /* ── 규칙 ── */
+  #rules { margin-top: .8vw; font-size: .95vw; }
+  #rules div { background: #e3e3e3; padding: .35vw .8vw; border-top: 1px solid #fff; }
+  #rules b { display: inline-block; width: 4.5vw; }
+  #sign { text-align: right; margin-top: .6vw; font-size: 1.3vw; letter-spacing: .6vw; }
+  #sign span { color: #aaa; font-size: 1vw; letter-spacing: 0; margin-left: .8vw; }
+
+  #hint {
+    position: fixed; bottom: 1vh; right: 1.5vw;
+    color: rgba(255,255,255,.35); font-size: .8vw;
+    transition: opacity 1s;
+  }
+  body.idle #hint { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="top">
+    <div id="clock">
+      <div class="date" id="date"></div>
+      <div class="time" id="time"></div>
+    </div>
+    <div id="nowbox">
+      <div class="label" id="nowLabel">지금 할 일</div>
+      <div class="what" id="nowWhat"></div>
+      <div class="bar"><i id="nowBar"></i></div>
+      <div class="next" id="nowNext"></div>
+    </div>
+  </div>
+
+  <div id="card">
+    <h1>♡대훈이 시간표♡</h1>
+    <div id="table">
+      <div class="corner">요일</div>
+      <div class="hrow" id="hAmPm"></div>
+      <div class="hrow sub" id="hHour"></div>
+      <div class="hrow mini" id="hHalf"></div>
+      <div id="nowline"><div class="glow"></div><div class="tag" id="nowTag"></div></div>
+    </div>
+    <div id="rules">
+      <div><b>규칙 1)</b>4학년이 끝날때까지, 그리고 겨울 동안은 태권도 이후 바로 집으로 옵니다.</div>
+      <div><b>규칙 2)</b>숙제를 다 끝내지 못 한날은 자유시간에 숙제를 마친 후 자유시간을 가집니다.</div>
+      <div><b>규칙 3)</b>위의 규칙을 지키지 못하면 패드 시간 중 로블록스와 유투브 시청시간을 각 10분씩 줄입니다.</div>
+      <div><b>규칙 4)</b>규칙3)의 패널티는 1주일 시간표를 잘 지키면 다시 복구 됩니다.</div>
+    </div>
+    <div id="sign">곽 대 훈<span>(서명)</span></div>
+  </div>
+</div>
+<div id="hint">클릭하면 전체화면 · ESC로 나가기</div>
+
+<script>
+// ───────────────── 시간표 데이터 ─────────────────
+// 시간은 "HH:MM" (24시간제). 요일 키: 1=월 … 5=금
+const ELLI   = ["07:00", "08:00", "엘리하이", "study"];
+const BREAK  = ["08:00", "08:30", "아침<br>식사", "meal"];
+const MONWED = [
+  ELLI, BREAK,
+  ["08:30", "14:00", "학 교", "school"],
+  ["14:00", "16:00", "안젤라 영어", "study"],
+  ["16:00", "17:00", "숙제", "hw"],
+  ["17:00", "18:00", "자유<br>시간", "free"],
+  ["18:00", "19:30", "태권도", "tkd"],
+  ["19:30", "20:00", "저녁<br>식사", "meal"],
+  ["20:00", "21:30", "샤워 &amp;<br>자유시간", "free"],
+  ["21:30", "23:00", "Good<br>night ☆", "night"],
+];
+const WISE_TAIL = [
+  ["15:00", "15:30", "숙제", "hw"],
+  ["15:30", "20:30", "와이즈만 영재교육", "study"],
+  ["20:30", "21:00", "저녁<br>식사", "meal"],
+  ["21:00", "22:00", "샤워 &amp;<br>자유<br>시간", "free"],
+  ["22:00", "23:00", "Good<br>night ☆", "night"],
+];
+const SCHEDULE = {
+  1: MONWED,
+  2: [ELLI, BREAK,
+      ["08:30", "14:00", "학 교", "school"],
+      ["14:00", "15:00", "엄마<br>수학<br>공부방", "study"],
+      ...WISE_TAIL],
+  3: MONWED,
+  4: [ELLI, BREAK,
+      ["08:30", "15:00", "학 교", "school"],
+      ...WISE_TAIL],
+  5: [ELLI, BREAK,
+      ["08:30", "14:00", "학 교", "school"],
+      ["14:00", "15:30", "엄마<br>선생님과<br>공부 ♡", "study"],
+      ["15:30", "16:30", "숙제", "hw"],
+      ["16:30", "18:00", "자유<br>시간", "free"],
+      ["18:00", "19:30", "태권도", "tkd"],
+      ["19:30", "20:00", "저녁<br>식사", "meal"],
+      ["20:00", "22:00", "샤워 &amp;<br>자유시간", "free"],
+      ["22:00", "23:00", "Good<br>night ☆", "night"]],
+};
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+// ───────────────── 가로축 (시간 → 위치) ─────────────────
+// 원본 표처럼 9~12시는 학교라서 좁게 압축해서 보여줌.
+// 각 구간: [시작분, 끝분, 차지하는 칸 수(30분 = 1칸)]
+const SEGMENTS = [
+  [7 * 60, 9 * 60, 4],     // 7:00 ~ 9:00  (4칸)
+  [9 * 60, 13 * 60, 1],    // 9:00 ~ 13:00 (압축 1칸)
+  [13 * 60, 23 * 60, 20],  // 13:00 ~ 23:00 (20칸)
+];
+const TOTAL_UNITS = SEGMENTS.reduce((s, g) => s + g[2], 0);
+const START_MIN = SEGMENTS[0][0];
+const END_MIN = SEGMENTS[SEGMENTS.length - 1][1];
+
+const toMin = hm => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+
+function pct(min) {
+  let units = 0;
+  for (const [a, b, u] of SEGMENTS) {
+    if (min >= b) { units += u; continue; }
+    if (min > a) units += u * (min - a) / (b - a);
+    break;
+  }
+  return units / TOTAL_UNITS * 100;
+}
+
+// ───────────────── 표 그리기 ─────────────────
+function hcell(parent, fromMin, toMinute, html) {
+  const d = document.createElement("div");
+  d.className = "hcell";
+  d.style.left = pct(fromMin) + "%";
+  d.style.width = (pct(toMinute) - pct(fromMin)) + "%";
+  d.innerHTML = html;
+  parent.appendChild(d);
+}
+
+function buildHeader() {
+  const ampm = document.getElementById("hAmPm");
+  hcell(ampm, 7 * 60, 13 * 60, "오전");
+  hcell(ampm, 13 * 60, 23 * 60, "오후");
+
+  const hour = document.getElementById("hHour");
+  const half = document.getElementById("hHalf");
+  for (let h = 7; h < 23; h++) {
+    if (h >= 9 && h < 13) continue;
+    const label = (h > 12 ? h - 12 : h) + "시";
+    hcell(hour, h * 60, h * 60 + 60, label);
+    hcell(half, h * 60, h * 60 + 30, ":00");
+    hcell(half, h * 60 + 30, h * 60 + 60, ":30");
+  }
+  hcell(hour, 9 * 60, 13 * 60, "9~12");
+  hcell(half, 9 * 60, 13 * 60, "…");
+}
+
+const lanes = {};
+function buildRows() {
+  const table = document.getElementById("table");
+  for (let d = 1; d <= 5; d++) {
+    const label = document.createElement("div");
+    label.className = "day";
+    label.textContent = DAY_NAMES[d];
+    label.style.gridColumn = "1";
+    label.style.gridRow = String(3 + d);
+    table.appendChild(label);
+
+    const lane = document.createElement("div");
+    lane.className = "lane";
+    lane.style.gridColumn = "2";
+    lane.style.gridRow = String(3 + d);
+    for (const [s, e, name, cls] of SCHEDULE[d]) {
+      const b = document.createElement("div");
+      b.className = "blk " + cls;
+      const sm = toMin(s), em = toMin(e);
+      b.style.left = pct(sm) + "%";
+      b.style.width = (pct(em) - pct(sm)) + "%";
+      b.innerHTML = name;
+      b.dataset.start = sm;
+      b.dataset.end = em;
+      lane.appendChild(b);
+    }
+    table.appendChild(lane);
+    lanes[d] = { label, lane };
+  }
+  // 막대선은 월~금 행 전체 높이에 걸치도록 별도 레이어로
+  const layer = document.createElement("div");
+  layer.style.cssText = "grid-column:2;grid-row:4 / span 5;position:relative;pointer-events:none;z-index:5";
+  layer.appendChild(document.getElementById("nowline"));
+  table.appendChild(layer);
+}
+
+// ───────────────── 현재 시각 처리 ─────────────────
+// 미리보기: index.html?t=2026-09-29T18:40  (그 시각부터 시계가 흐름)
+const params = new URLSearchParams(location.search);
+const fakeStart = params.get("t") ? new Date(params.get("t")) : null;
+const loadedAt = Date.now();
+const now = () => fakeStart ? new Date(fakeStart.getTime() + (Date.now() - loadedAt)) : new Date();
+
+const pad = n => String(n).padStart(2, "0");
+const fmt = min => {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${h > 12 ? h - 12 : h}:${pad(m)}`;
+};
+const plain = html => html.replace(/<br>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+
+function tick() {
+  const t = now();
+  const dow = t.getDay();
+  const min = t.getHours() * 60 + t.getMinutes() + t.getSeconds() / 60;
+
+  const h = t.getHours();
+  document.getElementById("date").textContent =
+    `${t.getFullYear()}.${pad(t.getMonth() + 1)}.${pad(t.getDate())} (${DAY_NAMES[dow]})`;
+  document.getElementById("time").innerHTML =
+    `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}:${pad(t.getMinutes())}<small>${pad(t.getSeconds())}</small>`;
+
+  // 오늘 행 강조 + 지난 칸 흐리게 + 현재 칸 표시
+  let current = null, next = null;
+  for (let d = 1; d <= 5; d++) {
+    const isToday = d === dow;
+    lanes[d].label.classList.toggle("today", isToday);
+    lanes[d].lane.classList.toggle("today", isToday);
+    for (const b of lanes[d].lane.children) {
+      const s = +b.dataset.start, e = +b.dataset.end;
+      const isCur = isToday && min >= s && min < e;
+      b.classList.toggle("past", isToday && min >= e);
+      b.classList.toggle("current", isCur);
+      if (isCur) current = b;
+      if (isToday && !next && s > min) next = b;
+    }
+  }
+
+  // 막대선
+  const line = document.getElementById("nowline");
+  const weekday = dow >= 1 && dow <= 5;
+  if (weekday && min >= START_MIN && min <= END_MIN) {
+    line.style.display = "block";
+    line.style.left = pct(min) + "%";
+    document.getElementById("nowTag").textContent = `${h % 12 || 12}:${pad(t.getMinutes())}`;
+  } else {
+    line.style.display = "none";
+  }
+
+  // 지금 할 일 패널
+  const what = document.getElementById("nowWhat");
+  const bar = document.getElementById("nowBar");
+  const nextEl = document.getElementById("nowNext");
+  const label = document.getElementById("nowLabel");
+  label.textContent = "지금 할 일";
+  if (current) {
+    const s = +current.dataset.start, e = +current.dataset.end;
+    what.innerHTML = `${plain(current.innerHTML)}<span class="range">${fmt(s)} ~ ${fmt(e)}</span>`;
+    bar.style.width = ((min - s) / (e - s) * 100) + "%";
+    const left = Math.ceil(e - min);
+    nextEl.textContent = next
+      ? `${left}분 남음 · 다음: ${plain(next.innerHTML)} (${fmt(+next.dataset.start)})`
+      : `${left}분 남음`;
+  } else {
+    bar.style.width = "0";
+    if (!weekday) {
+      what.textContent = "주말이에요! 신나게 놀아요 ☺";
+      nextEl.textContent = "월요일 시간표는 7시 엘리하이부터 시작해요";
+    } else if (min < START_MIN) {
+      what.textContent = "아직 일어날 시간 전이에요";
+      nextEl.textContent = "7:00 엘리하이부터 시작!";
+    } else {
+      what.textContent = "Good night ☆ 푹 자요";
+      nextEl.textContent = "오늘도 수고했어요";
+    }
+  }
+}
+
+// ───────────────── 화면보호기 동작 ─────────────────
+// 화면 비율에 맞게 축소 + 번인 방지를 위해 1분마다 조금씩 위치 이동
+const stage = document.getElementById("stage");
+let dx = 0, dy = 0;
+function layout() {
+  const scale = Math.min(1, innerHeight * 0.96 / stage.offsetHeight);
+  stage.style.transform = `translate(${dx}vw, ${dy}vh) scale(${scale})`;
+}
+function drift() {
+  dx = (Math.random() - .5) * 1.2;
+  dy = (Math.random() - .5) * 1.2;
+  layout();
+}
+addEventListener("resize", layout);
+// 마우스를 3초간 안 움직이면 커서 숨김
+let idleTimer;
+function wake() {
+  document.body.classList.remove("idle");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add("idle"), 3000);
+}
+document.addEventListener("mousemove", wake);
+document.addEventListener("click", () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+});
+
+buildHeader();
+buildRows();
+tick();
+layout();
+wake();
+setInterval(tick, 1000);
+setInterval(drift, 60000);
+</script>
+</body>
+</html>
