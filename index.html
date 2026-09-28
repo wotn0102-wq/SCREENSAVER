@@ -34,15 +34,46 @@
   #top { display: table; width: 100%; margin-bottom: 1.2vw; color: #fff; }
   #clock, #nowbox, #topgap { display: table-cell; vertical-align: middle; }
   #topgap { width: 1.2vw; }
-  #clock {
-    width: 24%;
-    background: #2a3533;
-    border-radius: 1vw;
-    padding: .8vw 1.6vw;
+  /* 플립시계: 검은 타일 2개 + 굵고 좁은 흰 숫자 + 가운데 가로 분할선 */
+  #clock { width: 30%; white-space: nowrap; }
+  #clock .date { font-size: 1.2vw; color: #c3cac9; margin: 0 0 .4vw .2vw; }
+  .flip {
+    position: relative;
+    display: inline-block;
+    width: 13vw; height: 10.5vw;
+    margin-right: .6vw;
+    border-radius: .9vw;
+    background: #161616;
+    background: linear-gradient(to bottom, #232323 0%, #1a1a1a 49.5%, #0f0f0f 50.5%, #141414 100%);
+    box-shadow: 0 .3vw .8vw rgba(0,0,0,.6);
+    text-align: center;
+    overflow: hidden;
   }
-  #clock .date { font-size: 1.3vw; color: #c3cac9; }
-  #clock .time { font-size: 4.2vw; font-weight: bold; line-height: 1.1; white-space: nowrap; }
-  #clock .time small { font-size: 2vw; color: #9aa3a2; margin-left: .3vw; }
+  .flip b {
+    display: block;
+    font-family: "Bebas Neue", "Oswald", "Arial Narrow", "Helvetica Neue", Impact, sans-serif;
+    font-weight: bold;
+    font-size: 9.6vw;
+    line-height: 10.5vw;
+    color: #e6e6e6;
+    letter-spacing: -.2vw;
+  }
+  .flip:after {                      /* 가운데 분할선 */
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    height: .18vw; margin-top: -.09vw;
+    background: #000;
+  }
+  .flip i {                          /* AM/PM */
+    position: absolute; left: .7vw; bottom: .6vw;
+    font-style: normal; font-weight: bold;
+    font-family: Arial, sans-serif;
+    font-size: .8vw; color: #d0d0d0;
+  }
+  .flip.turn b { animation: flipin .5s ease-out; }
+  @keyframes flipin {
+    0%   { transform: scaleY(.2); opacity: .3; }
+    100% { transform: scaleY(1);  opacity: 1; }
+  }
 
   #nowbox {
     background: #2a3533;
@@ -184,7 +215,7 @@
   <div id="top">
     <div id="clock">
       <div class="date" id="date"></div>
-      <div class="time" id="time"></div>
+      <div class="flip" id="flipH"><b id="hh"></b><i id="ampm"></i></div><div class="flip" id="flipM"><b id="mm"></b></div>
     </div>
     <div id="topgap"></div>
     <div id="nowbox">
@@ -369,6 +400,19 @@ var fakeOffset = 0;
 })();
 function now() { return new Date(new Date().getTime() + fakeOffset); }
 
+// 숫자가 바뀔 때만 넘어가는 효과를 줌
+function setFlip(tileId, numId, text) {
+  var num = $(numId);
+  if (num.innerHTML === text) return;
+  var tile = $(tileId);
+  var first = num.innerHTML === "";
+  num.innerHTML = text;
+  if (first) return;
+  setClass(tile, "turn", false);
+  void tile.offsetWidth;            // 애니메이션 다시 시작
+  setClass(tile, "turn", true);
+}
+
 function tick() {
   var t = now();
   var dow = t.getDay();
@@ -377,8 +421,9 @@ function tick() {
 
   $("date").innerHTML = t.getFullYear() + "." + pad(t.getMonth() + 1) + "." + pad(t.getDate()) +
     " (" + DAY_NAMES[dow] + ")";
-  $("time").innerHTML = (h < 12 ? "오전 " : "오후 ") + hour12(h) + ":" + pad(t.getMinutes()) +
-    "<small>" + pad(t.getSeconds()) + "</small>";
+  setFlip("flipH", "hh", String(hour12(h)));
+  setFlip("flipM", "mm", pad(t.getMinutes()));
+  $("ampm").innerHTML = h < 12 ? "AM" : "PM";
 
   // 오늘 행 강조 + 지난 칸 흐리게 + 현재 칸 표시
   var current = null, next = null;
